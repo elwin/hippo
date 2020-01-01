@@ -9,9 +9,7 @@ import "github.com/elwin/hippo/pkg/hippo"
 func main() {
 
 	mux := hippo.New()
-	mux.Get("/", func(request hippo.Request) hippo.Response {
-		return hippo.NewResponse().WithBody("Hello World")
-	}, hippo.TimeMiddleware, hippo.LogMiddleware, hippo.SessionMiddleware)
+	mux.Get("/", index).WithMiddleware(hippo.TimeMiddleware, hippo.LogMiddleware, hippo.SessionMiddleware)
 
 	server := http.Server{
 		Addr:    "localhost:8080",
@@ -19,4 +17,8 @@ func main() {
 	}
 
 	log.Fatal(server.ListenAndServe())
+}
+
+func index(request hippo.Request) hippo.Response {
+	return hippo.NewResponse().WithBody("Hello World")
 }

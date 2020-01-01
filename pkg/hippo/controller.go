@@ -5,15 +5,34 @@ import (
 	"net/http"
 )
 
+const (
+	verbGET = "get"
+)
+
 type ServerHandler struct {
-	mapping map[string]HandlerFunc
+	mapping map[pattern]*handler
 }
 
-func New() ServerHandler {
-	return ServerHandler{mapping: map[string]HandlerFunc{}}
+type handler struct {
+	f  HandlerFunc
+	ms []Middleware
 }
 
-func (s ServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// TODO: Chain middlewares only once
+func (h handler) handle(request Request) Response {
+	f := h.f
+	for i := len(h.ms) - 1; i >= 0; i-- {
+		f = h.ms[i](f)
+	}
+
+	return f(request)
+}
+
+func New() *ServerHandler {
+	return &ServerHandler{mapping: map[pattern]*handler{}}
+}
+
+func (s *ServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		fmt.Println(err)
 	}
@@ -26,7 +45,12 @@ func (s ServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cookies:  r.Cookies(),
 	}
 
-	response := s.mapping[request.url.Path](request)
+	p := pattern{
+		verb: verbGET,
+		path: r.URL.Path,
+		s:    s,
+	}
+	response := s.mapping[p].handle(request)
 
 	header := w.Header()
 	for name, values := range response.header {
@@ -42,10 +66,31 @@ func (s ServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s ServerHandler) Get(path string, handler HandlerFunc, middleware ...Middleware) {
-	for i := len(middleware) - 1; i >= 0; i-- {
-		handler = middleware[i](handler)
+func (s *ServerHandler) Get(path string, h HandlerFunc) pattern {
+	p := pattern{
+		verb: verbGET,
+		path: path,
+		s:    s,
 	}
 
-	s.mapping[path] = handler
+	s.mapping[p] = &handler{f: h}
+
+	return p
+}
+
+type pattern struct {
+	verb, path string
+	s          *ServerHandler
+}
+
+func (p pattern) WithMiddleware(m Middleware, ms ...Middleware) pattern {
+	handler, ok := p.s.mapping[p]
+	if !ok {
+		panic("handler is not registered")
+	}
+
+	handler.ms = append(handler.ms, m)
+	handler.ms = append(handler.ms, ms...)
+
+	return p
 }
