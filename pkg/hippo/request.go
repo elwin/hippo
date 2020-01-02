@@ -6,12 +6,12 @@ import (
 )
 
 type Request struct {
-	url       url.URL
-	header    http.Header
-	form      url.Values
-	postForm  url.Values
-	cookies   CookieJar
-	sessionID string
+	url      url.URL
+	header   http.Header
+	form     url.Values
+	postForm url.Values
+	cookies  CookieJar
+	Session  Session
 }
 
 type HandlerFunc func(Request) Response
@@ -26,4 +26,13 @@ func (j CookieJar) Get(name string) *http.Cookie {
 	}
 
 	return nil
+}
+
+func (r Request) Query(key string) (string, bool) {
+	value := r.url.Query().Get(key)
+	if value == "" {
+		return "", false
+	}
+
+	return value, true
 }

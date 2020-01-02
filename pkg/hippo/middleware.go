@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/elwin/hippo/pkg/crypto"
 )
+
+const sessionID = "sessionID"
 
 type Middleware func(HandlerFunc) HandlerFunc
 
@@ -26,22 +26,26 @@ func TimeMiddleware(next HandlerFunc) HandlerFunc {
 	}
 }
 
-func SessionMiddleware(next HandlerFunc) HandlerFunc {
+func (s ServerHandler) SessionMiddleware(next HandlerFunc) HandlerFunc {
 	return func(request Request) Response {
-		sessionCookie := request.cookies.Get("sessionID")
-		if sessionCookie != nil && sessionCookie.Value != "" {
-			request.sessionID = sessionCookie.Value
-			return next(request)
+		sessionCookie := request.cookies.Get(sessionID)
+		if sessionCookie != nil {
+			if session, ok := s.sessions.Get(sessionCookie.Value); ok {
+				request.Session = session
+				return next(request)
+			}
 		}
 
-		sessionID, err := crypto.GenerateRandomString(32)
+		session, err := s.sessions.New()
 		if err != nil {
 			return NewResponse().WithStatusCode(http.StatusInternalServerError)
 		}
 
-		request.sessionID = sessionID
+		fmt.Printf("New Session with id %s\n", session.ID())
+
+		request.Session = session
 		response := next(request)
-		response.WithCookie(http.Cookie{Name: "sessionID", Value: sessionID})
+		response.WithCookie(http.Cookie{Name: sessionID, Value: session.ID()})
 		return response
 	}
 }

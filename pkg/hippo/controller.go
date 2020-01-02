@@ -10,7 +10,8 @@ const (
 )
 
 type ServerHandler struct {
-	mapping map[pattern]*handler
+	mapping  map[pattern]*handler
+	sessions sessionHandler
 }
 
 type handler struct {
@@ -29,7 +30,10 @@ func (h handler) handle(request Request) Response {
 }
 
 func New() *ServerHandler {
-	return &ServerHandler{mapping: map[pattern]*handler{}}
+	return &ServerHandler{
+		mapping:  map[pattern]*handler{},
+		sessions: NewSessionHandler(),
+	}
 }
 
 func (s *ServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -53,13 +57,13 @@ func (s *ServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	response := s.mapping[p].handle(request)
 
 	header := w.Header()
-	for name, values := range response.header {
+	for name, values := range response.Header() {
 		for _, value := range values {
 			header.Add(name, value)
 		}
 	}
 
-	w.WriteHeader(response.statusCode)
+	w.WriteHeader(response.StatusCode())
 
 	if _, err := w.Write([]byte(response.Body())); err != nil {
 		fmt.Println(err)
